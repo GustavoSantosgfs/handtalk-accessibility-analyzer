@@ -5,6 +5,7 @@ Uma aplicação full-stack para análise de acessibilidade de websites, desenvol
 ## Sumário
 
 - [Visão Geral](#visão-geral)
+- [Acessibilidade da Interface](#acessibilidade-da-interface)
 - [Arquitetura](#arquitetura)
 - [Stack Tecnológica](#stack-tecnológica)
 - [Estrutura do Projeto](#estrutura-do-projeto)
@@ -31,6 +32,90 @@ Esta aplicação permite que usuários submetam uma URL para análise básica de
 | **Associação Input/Label** | Verifica se os inputs de formulário possuem labels explicitamente associados |
 
 Os resultados são persistidos no MongoDB e exibidos em uma interface amigável ao usuário.
+
+---
+
+## Acessibilidade da Interface
+
+A própria interface do analisador foi desenvolvida seguindo as **diretrizes WCAG 2.1** e boas práticas de acessibilidade web, garantindo que a ferramenta que analisa acessibilidade também seja acessível.
+
+### Estrutura Semântica HTML5
+
+| Elemento | Uso |
+|----------|-----|
+| `<header>`, `<main>`, `<footer>` | Landmarks para navegação por regiões |
+| `<nav>` | Navegação principal |
+| `<section>` com `aria-labelledby` | Seções com títulos associados |
+| `<article>` | Conteúdo independente (resultados) |
+| Hierarquia de headings (h1→h2→h3) | Estrutura lógica de títulos |
+
+### Atributos ARIA Implementados
+
+```html
+<!-- Formulário de busca com descrição -->
+<form role="search" aria-label="Formulário de análise de URL">
+  <input aria-describedby="url-hint" />
+  <button :aria-busy="isLoading">...</button>
+</form>
+
+<!-- Regiões dinâmicas com live regions -->
+<div role="status" aria-live="polite">...</div>
+<div role="alert" aria-live="assertive">...</div>
+
+<!-- Navegação com estado atual -->
+<a :aria-current="isActive ? 'page' : undefined">...</a>
+
+<!-- Barra de progresso acessível -->
+<div role="progressbar"
+     :aria-valuenow="progress"
+     aria-valuemin="0"
+     aria-valuemax="100">
+</div>
+
+<!-- Ícones decorativos ocultos -->
+<span aria-hidden="true">✓</span>
+```
+
+### Práticas de Acessibilidade
+
+| Categoria | Implementação |
+|-----------|---------------|
+| **Labels de Formulário** | Todos os inputs possuem `<label>` associado via `for`/`id` |
+| **Textos Alternativos** | Elementos visuais possuem `aria-label` descritivo |
+| **Feedback de Estado** | Estados de loading, erro e sucesso anunciados via `aria-live` |
+| **Navegação por Teclado** | Todos os elementos interativos são focáveis e operáveis |
+| **Contraste de Cores** | Bootstrap 5 com cores que atendem WCAG AA |
+| **Textos para Leitores de Tela** | Classe `.visually-hidden` para conteúdo só para screen readers |
+| **Links Externos** | Atributo `rel="noopener"` para segurança |
+| **Responsividade** | Layout adaptável para diferentes dispositivos |
+
+### Componentes Acessíveis
+
+**AnalyzerForm.vue:**
+- Label explícito associado ao input
+- Dica de preenchimento via `aria-describedby`
+- Estado de loading comunicado via `aria-busy`
+- Spinner com `role="status"` e texto oculto
+
+**ProgressBar.vue:**
+- `role="progressbar"` com valores min/max/now
+- Container com `aria-live="polite"` para atualizações
+- Mensagem de texto complementar
+
+**ResultsDisplay.vue:**
+- Score visual com `role="img"` e `aria-label` descritivo
+- Ícones decorativos com `aria-hidden="true"`
+- Estrutura semântica com `<article>` e headings
+
+**Pagination.vue:**
+- `aria-label` descritivo na navegação
+- `aria-current="page"` na página ativa
+- Botões com labels descritivos ("Ir para página X")
+
+**AppHeader.vue:**
+- Navegação com `aria-controls` e `aria-expanded`
+- `aria-current="page"` para indicar página atual
+- Botão de menu mobile com `aria-label`
 
 ---
 
