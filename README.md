@@ -1,141 +1,233 @@
-# Hand Talk - Web Accessibility Analyzer
+# Hand Talk - Analisador de Acessibilidade Web
 
-A full-stack application for analyzing website accessibility, built as part of the Hand Talk Full Stack Developer III technical challenge.
+Uma aplicação full-stack para análise de acessibilidade de websites, desenvolvida como parte do desafio técnico Hand Talk Full Stack Developer III.
 
-## Table of Contents
+## Sumário
 
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Running with Docker](#running-with-docker)
-- [API Documentation](#api-documentation)
-- [Architectural Decisions](#architectural-decisions)
-- [Design Patterns](#design-patterns)
-- [Trade-offs and Improvements](#trade-offs-and-improvements)
-- [AWS Production Deploy Strategy](#aws-production-deploy-strategy)
-- [Scalability Discussion](#scalability-discussion)
-
----
-
-## Overview
-
-This application allows users to submit a URL for basic accessibility analysis. It checks for:
-
-- **Title tag**: Verifies if `<title>` exists and is not empty
-- **Image alt attributes**: Counts images and identifies those missing `alt` attributes
-- **Input/Label associations**: Checks if form inputs have properly associated labels
-
-The results are persisted in MongoDB and displayed in a user-friendly interface.
+- [Visão Geral](#visão-geral)
+- [Arquitetura](#arquitetura)
+- [Stack Tecnológica](#stack-tecnológica)
+- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Como Executar](#como-executar)
+- [Executando com Docker](#executando-com-docker)
+- [Documentação da API](#documentação-da-api)
+- [Decisões Arquiteturais](#decisões-arquiteturais)
+- [Padrões de Projeto](#padrões-de-projeto)
+- [Trade-offs e Melhorias](#trade-offs-e-melhorias)
+- [Estratégia de Deploy em Produção (AWS)](#estratégia-de-deploy-em-produção-aws)
+- [Desafios de Escalabilidade](#desafios-de-escalabilidade)
+- [Testes](#testes)
 
 ---
 
-## Tech Stack
+## Visão Geral
+
+Esta aplicação permite que usuários submetam uma URL para análise básica de acessibilidade. A ferramenta verifica:
+
+| Verificação | Descrição |
+|-------------|-----------|
+| **Tag Title** | Verifica se a tag `<title>` existe e não está vazia |
+| **Atributos Alt em Imagens** | Conta o total de imagens e identifica aquelas sem o atributo `alt` |
+| **Associação Input/Label** | Verifica se os inputs de formulário possuem labels explicitamente associados |
+
+Os resultados são persistidos no MongoDB e exibidos em uma interface amigável ao usuário.
+
+---
+
+## Arquitetura
+
+### Diagrama de Arquitetura do Sistema
+
+```mermaid
+flowchart TB
+    subgraph Client["Camada Cliente"]
+        Browser["Navegador"]
+    end
+
+    subgraph Frontend["Frontend (Vue 3 + TypeScript)"]
+        Views["Views/Páginas"]
+        Components["Componentes"]
+        Stores["Pinia Stores"]
+        API["Camada API (Axios)"]
+    end
+
+    subgraph Backend["Backend (Node.js + Express)"]
+        Routes["Rotas"]
+        Controllers["Controllers"]
+        Services["Camada de Serviços"]
+        Repositories["Camada de Repositórios"]
+    end
+
+    subgraph Data["Camada de Dados"]
+        MongoDB[("MongoDB")]
+    end
+
+    subgraph RealTime["Tempo Real"]
+        SocketIO["Socket.io"]
+    end
+
+    Browser --> Views
+    Views <--> Stores
+    Stores <--> API
+    Components --> Views
+
+    API -->|"HTTP/REST"| Routes
+    API <-->|"WebSocket"| SocketIO
+    Routes --> Controllers
+    Controllers --> Services
+    Services --> Repositories
+    Repositories --> MongoDB
+
+    SocketIO <--> Services
+```
+
+### Fluxo de Requisição
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário
+    participant F as Frontend
+    participant S as Socket.io
+    participant C as Controller
+    participant Svc as Service
+    participant R as Repository
+    participant DB as MongoDB
+
+    U->>F: Submete URL
+    F->>C: POST /api/analyze
+    C->>Svc: analyzeUrl(url)
+    Svc->>S: Emite "progress" (Buscando HTML)
+    Svc->>Svc: Busca HTML da URL
+    S-->>F: Progresso em tempo real
+    Svc->>S: Emite "progress" (Analisando)
+    Svc->>Svc: Analisa acessibilidade
+    Svc->>R: Salva resultado
+    R->>DB: Insert
+    DB-->>R: Documento salvo
+    R-->>Svc: Análise completa
+    Svc->>S: Emite "complete"
+    Svc-->>C: Resultado
+    C-->>F: JSON Response
+    S-->>F: Notificação de conclusão
+```
+
+---
+
+## Stack Tecnológica
 
 ### Backend
-- **Node.js** with **TypeScript**
-- **Express.js** - Web framework
-- **MongoDB** with **Mongoose** - Database and ODM
-- **Socket.io** - Real-time WebSocket communication
-- **Cheerio** - HTML parsing for accessibility analysis
-- **Zod** - Runtime validation
-- **Vitest** - Testing framework
+
+| Tecnologia | Propósito |
+|------------|-----------|
+| **Node.js** + **TypeScript** | Runtime e tipagem estática |
+| **Express.js** | Framework web |
+| **MongoDB** + **Mongoose** | Banco de dados e ODM |
+| **Socket.io** | Comunicação WebSocket em tempo real |
+| **Cheerio** | Parsing HTML para análise de acessibilidade |
+| **Zod** | Validação em runtime |
+| **Vitest** | Framework de testes |
 
 ### Frontend
-- **Vue.js 3** with **TypeScript**
-- **Pinia** - State management
-- **Vue Router** - Client-side routing
-- **Bootstrap 5** - UI framework
-- **Socket.io-client** - WebSocket client
-- **Axios** - HTTP client
-- **Vitest** - Testing framework
 
-### DevOps
-- **Docker** & **Docker Compose**
-- **GitHub Actions** - CI/CD pipeline
+| Tecnologia | Propósito |
+|------------|-----------|
+| **Vue.js 3** + **TypeScript** | Framework UI com tipagem |
+| **Pinia** | Gerenciamento de estado |
+| **Vue Router** | Roteamento client-side |
+| **Bootstrap 5** | Framework CSS |
+| **Socket.io-client** | Cliente WebSocket |
+| **Axios** | Cliente HTTP |
+| **Vitest** | Framework de testes |
+
+### Infraestrutura
+
+| Tecnologia | Propósito |
+|------------|-----------|
+| **Docker** + **Docker Compose** | Containerização e orquestração |
+| **GitHub Actions** | Pipeline CI/CD |
 
 ---
 
-## Project Structure
+## Estrutura do Projeto
 
 ```
 handtalk-accessibility-analyzer/
 ├── backend/
 │   ├── src/
-│   │   ├── config/          # Database configuration
-│   │   ├── controllers/     # Request handlers
-│   │   ├── models/          # Mongoose schemas
-│   │   ├── repositories/    # Data access layer
-│   │   ├── routes/          # API route definitions
-│   │   ├── schemas/         # Zod validation schemas
-│   │   ├── services/        # Business logic
-│   │   ├── socket/          # WebSocket handlers
-│   │   ├── types/           # TypeScript interfaces
-│   │   └── index.ts         # Application entry point
-│   ├── tests/               # Unit tests
+│   │   ├── config/          # Configuração do banco de dados
+│   │   ├── controllers/     # Handlers de requisição
+│   │   ├── models/          # Schemas Mongoose
+│   │   ├── repositories/    # Camada de acesso a dados
+│   │   ├── routes/          # Definições de rotas da API
+│   │   ├── schemas/         # Schemas de validação Zod
+│   │   ├── services/        # Lógica de negócio
+│   │   ├── socket/          # Handlers WebSocket
+│   │   ├── types/           # Interfaces TypeScript
+│   │   └── index.ts         # Ponto de entrada
+│   ├── tests/               # Testes unitários
 │   ├── Dockerfile
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      # Vue components
-│   │   ├── views/           # Page components
-│   │   ├── stores/          # Pinia stores
-│   │   ├── services/        # API and Socket services
-│   │   ├── router/          # Vue Router config
-│   │   ├── types/           # TypeScript interfaces
-│   │   └── main.ts          # Application entry point
+│   │   ├── components/      # Componentes Vue
+│   │   ├── views/           # Componentes de página
+│   │   ├── stores/          # Stores Pinia
+│   │   ├── services/        # Serviços de API e Socket
+│   │   ├── router/          # Configuração Vue Router
+│   │   ├── types/           # Interfaces TypeScript
+│   │   └── main.ts          # Ponto de entrada
 │   ├── Dockerfile
 │   └── package.json
-├── scripts/                 # Automation scripts
-├── .github/workflows/       # CI/CD pipeline
+├── scripts/                 # Scripts de automação
+├── .github/workflows/       # Pipeline CI/CD
 ├── docker-compose.yml
 └── README.md
 ```
 
 ---
 
-## Getting Started
+## Como Executar
 
-### Prerequisites
+### Pré-requisitos
 
 - Node.js >= 18
-- MongoDB (local or Docker)
+- MongoDB (local ou Docker)
 - npm
 
-### Installation
+### Instalação
 
-1. **Clone the repository**
+1. **Clone o repositório**
 ```bash
-git clone https://github.com/your-username/handtalk-accessibility-analyzer.git
+git clone https://github.com/seu-usuario/handtalk-accessibility-analyzer.git
 cd handtalk-accessibility-analyzer
 ```
 
-2. **Run the setup script**
+2. **Execute o script de setup**
 ```bash
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
 ```
 
-Or manually:
+Ou manualmente:
 
 ```bash
-# Install backend dependencies
+# Instalar dependências do backend
 cd backend
 npm install
 cp .env.example .env
 
-# Install frontend dependencies
+# Instalar dependências do frontend
 cd ../frontend
 npm install
 cp .env.example .env
 ```
 
-3. **Start MongoDB** (if not using Docker)
+3. **Inicie o MongoDB** (se não estiver usando Docker)
 ```bash
 mongod
 ```
 
-4. **Start the development servers**
+4. **Inicie os servidores de desenvolvimento**
 
 Backend:
 ```bash
@@ -143,49 +235,65 @@ cd backend
 npm run dev
 ```
 
-Frontend (in another terminal):
+Frontend (em outro terminal):
 ```bash
 cd frontend
 npm run dev
 ```
 
-5. **Access the application**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3000
+5. **Acesse a aplicação**
+
+| Serviço | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:3000 |
 
 ---
 
-## Running with Docker
+## Executando com Docker
 
-The easiest way to run the entire application:
+A forma mais fácil de executar toda a aplicação:
 
 ```bash
 docker compose up
 ```
 
-This will start:
-- MongoDB on port 27017
-- Backend API on port 3000
-- Frontend on port 8080
+Isso iniciará:
 
-Access the application at http://localhost:8080
+| Serviço | Porta | Descrição |
+|---------|-------|-----------|
+| MongoDB | 27017 | Banco de dados |
+| Backend API | 3000 | API REST + WebSocket |
+| Frontend | 8080 | Aplicação Vue.js |
+
+Acesse a aplicação em **http://localhost:8080**
+
+### Comandos Docker Úteis
+
+```bash
+docker compose up -d            # Iniciar em background
+docker compose down             # Parar todos os serviços
+docker compose logs -f          # Ver logs (todos os serviços)
+docker compose logs backend     # Ver logs do backend
+docker compose up -d --build    # Rebuild e restart
+```
 
 ---
 
-## API Documentation
+## Documentação da API
 
 ### POST /api/analyze
 
-Analyzes a URL for accessibility issues.
+Analisa uma URL quanto a problemas de acessibilidade.
 
-**Request:**
+**Requisição:**
 ```json
 {
   "url": "https://example.com"
 }
 ```
 
-**Response:**
+**Resposta:**
 ```json
 {
   "id": "64abc123...",
@@ -217,13 +325,16 @@ Analyzes a URL for accessibility issues.
 
 ### GET /api/history
 
-Returns paginated history of analyses.
+Retorna histórico paginado de análises.
 
-**Query Parameters:**
-- `page` (default: 1)
-- `limit` (default: 10, max: 100)
+**Parâmetros de Query:**
 
-**Response:**
+| Parâmetro | Padrão | Descrição |
+|-----------|--------|-----------|
+| `page` | 1 | Número da página |
+| `limit` | 10 | Itens por página (máx: 100) |
+
+**Resposta:**
 ```json
 {
   "data": [...],
@@ -236,56 +347,109 @@ Returns paginated history of analyses.
 
 ### GET /api/analysis/:id
 
-Returns a specific analysis by ID.
+Retorna uma análise específica pelo ID.
 
 ---
 
-## Architectural Decisions
+## Decisões Arquiteturais
 
-### Backend Architecture: Layered Architecture
+### Arquitetura Backend: Arquitetura em Camadas
 
-The backend follows a **layered architecture** pattern, separating concerns into distinct layers:
+O backend segue o padrão de **arquitetura em camadas**, separando responsabilidades em camadas distintas:
 
 ```
 Routes → Controllers → Services → Repositories → Database
 ```
 
-**Why this approach:**
+```mermaid
+flowchart LR
+    subgraph Presentation["Camada de Apresentação"]
+        Routes["Routes"]
+        Controllers["Controllers"]
+    end
 
-1. **Separation of Concerns**: Each layer has a single responsibility
-   - Routes: Define API endpoints
-   - Controllers: Handle HTTP requests/responses
-   - Services: Contain business logic
-   - Repositories: Abstract data access
+    subgraph Business["Camada de Negócio"]
+        Services["Services"]
+    end
 
-2. **Testability**: Each layer can be tested in isolation with mocked dependencies
+    subgraph Data["Camada de Dados"]
+        Repositories["Repositories"]
+        Models["Models"]
+    end
 
-3. **Maintainability**: Changes in one layer don't affect others (e.g., switching from MongoDB to PostgreSQL only requires changing the repository layer)
+    subgraph External["Externo"]
+        MongoDB[("MongoDB")]
+    end
 
-4. **Scalability**: Easy to add new features without modifying existing code
+    Routes --> Controllers
+    Controllers --> Services
+    Services --> Repositories
+    Repositories --> Models
+    Models --> MongoDB
+```
 
-### Frontend Architecture: Component-Based with Centralized State
+**Por que essa abordagem:**
 
-The frontend uses Vue 3's Composition API with Pinia for state management:
+| Benefício | Descrição |
+|-----------|-----------|
+| **Separação de Responsabilidades** | Cada camada tem uma única responsabilidade |
+| **Testabilidade** | Cada camada pode ser testada isoladamente com dependências mockadas |
+| **Manutenibilidade** | Mudanças em uma camada não afetam as outras |
+| **Escalabilidade** | Fácil adicionar novas features sem modificar código existente |
 
-- **Components**: Presentational, reusable UI elements
-- **Views**: Page-level components connected to the router
-- **Stores**: Centralized state management with Pinia
-- **Services**: API communication layer
+### Arquitetura Frontend: Baseada em Componentes com Estado Centralizado
 
-**Why Pinia:**
-- Official Vue 3 state management solution
-- Full TypeScript support with type inference
-- Simpler API compared to Vuex
-- DevTools integration
+O frontend usa a Composition API do Vue 3 com Pinia para gerenciamento de estado:
+
+```mermaid
+flowchart TB
+    subgraph Views["Views (Páginas)"]
+        Home["HomeView"]
+        History["HistoryView"]
+    end
+
+    subgraph Components["Componentes"]
+        AnalysisForm["AnalysisForm"]
+        ResultCard["ResultCard"]
+        HistoryList["HistoryList"]
+    end
+
+    subgraph Stores["Pinia Stores"]
+        AnalysisStore["analysisStore"]
+        HistoryStore["historyStore"]
+    end
+
+    subgraph Services["Serviços"]
+        ApiService["apiService"]
+        SocketService["socketService"]
+    end
+
+    Home --> AnalysisForm
+    Home --> ResultCard
+    History --> HistoryList
+
+    AnalysisForm --> AnalysisStore
+    ResultCard --> AnalysisStore
+    HistoryList --> HistoryStore
+
+    AnalysisStore --> ApiService
+    AnalysisStore --> SocketService
+    HistoryStore --> ApiService
+```
+
+**Por que Pinia:**
+- Solução oficial de gerenciamento de estado para Vue 3
+- Suporte completo a TypeScript com inferência de tipos
+- API mais simples comparada ao Vuex
+- Integração com DevTools
 
 ---
 
-## Design Patterns
+## Padrões de Projeto
 
 ### 1. Repository Pattern (Backend)
 
-The `AnalysisRepository` abstracts all database operations, providing a clean interface for data access:
+O `AnalysisRepository` abstrai todas as operações de banco de dados, fornecendo uma interface limpa para acesso a dados:
 
 ```typescript
 class AnalysisRepository {
@@ -295,46 +459,62 @@ class AnalysisRepository {
 }
 ```
 
-**Benefits:**
-- Decouples business logic from data persistence
-- Easy to mock in tests
-- Simplifies switching databases
+**Benefícios:**
+- Desacopla lógica de negócio da persistência de dados
+- Fácil de mockar em testes
+- Simplifica troca de banco de dados
 
 ### 2. Service Pattern (Backend)
 
-Business logic is encapsulated in services:
+Lógica de negócio é encapsulada em serviços:
 
-- `AccessibilityService`: Performs HTML analysis
-- `HtmlFetcherService`: Fetches HTML content from URLs
+| Serviço | Responsabilidade |
+|---------|------------------|
+| `AccessibilityService` | Realiza análise de HTML |
+| `HtmlFetcherService` | Busca conteúdo HTML das URLs |
 
-**Benefits:**
-- Single Responsibility Principle
-- Reusable across different controllers
-- Easier unit testing
+**Benefícios:**
+- Princípio da Responsabilidade Única
+- Reutilizável em diferentes controllers
+- Testes unitários mais fáceis
 
 ### 3. Singleton Pattern (Backend Services)
 
-Services are exported as singleton instances:
+Serviços são exportados como instâncias singleton:
 
 ```typescript
 export default new AccessibilityService();
 ```
 
-**Benefits:**
-- Single instance throughout the application
-- Consistent state
-- Reduced memory usage
+**Benefícios:**
+- Instância única em toda a aplicação
+- Estado consistente
+- Uso reduzido de memória
 
 ### 4. Observer Pattern (WebSocket)
 
-Socket.io implements the Observer pattern for real-time updates:
+Socket.io implementa o padrão Observer para atualizações em tempo real:
 
-- Server emits progress events
-- Clients subscribe and react to updates
+```mermaid
+sequenceDiagram
+    participant S as Server (Observable)
+    participant C1 as Cliente 1 (Observer)
+    participant C2 as Cliente 2 (Observer)
+
+    Note over S,C2: Clientes se inscrevem
+    C1->>S: subscribe("progress")
+    C2->>S: subscribe("progress")
+
+    Note over S,C2: Servidor emite eventos
+    S->>C1: emit("progress", {step: 1})
+    S->>C2: emit("progress", {step: 1})
+    S->>C1: emit("complete", result)
+    S->>C2: emit("complete", result)
+```
 
 ### 5. Store Pattern (Frontend)
 
-Pinia stores centralize state and actions:
+Stores Pinia centralizam estado e ações:
 
 ```typescript
 export const useAnalysisStore = defineStore('analysis', () => {
@@ -349,213 +529,241 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
 ---
 
-## Trade-offs and Improvements
+## Trade-offs e Melhorias
 
-### Trade-offs Made
+### Trade-offs Realizados
 
-1. **Cheerio vs Puppeteer/Playwright**
-   - **Choice**: Cheerio for HTML parsing
-   - **Trade-off**: Cannot execute JavaScript, so SPAs aren't fully analyzed
-   - **Reason**: Simpler, faster, lower resource usage for basic HTML analysis
+| Escolha | Trade-off | Justificativa |
+|---------|-----------|---------------|
+| **Cheerio vs Puppeteer/Playwright** | Não executa JavaScript, SPAs não são totalmente analisadas | Mais simples, rápido, menor uso de recursos para análise básica de HTML |
+| **MongoDB vs PostgreSQL** | Schema menos rígido, sem joins complexos | Estrutura de documento flexível se adapta bem aos resultados de acessibilidade; requisito do desafio |
+| **Bootstrap vs CSS Customizado** | Bundle maior, menos customização | Desenvolvimento mais rápido, recursos de acessibilidade embutidos, responsivo por padrão |
+| **Monorepo sem Turborepo/Nx** | Sem cache avançado ou orquestração de tarefas | Setup mais simples para um projeto pequeno |
 
-2. **MongoDB vs PostgreSQL**
-   - **Choice**: MongoDB
-   - **Trade-off**: Less strict schema, no complex joins
-   - **Reason**: Flexible document structure fits accessibility results well, required by challenge
+### Melhorias com Mais Tempo
 
-3. **Bootstrap vs Custom CSS**
-   - **Choice**: Bootstrap 5
-   - **Trade-off**: Larger bundle size, less customization
-   - **Reason**: Faster development, built-in accessibility features, responsive by default
+#### Alta Prioridade
 
-4. **Monorepo without tools like Turborepo/Nx**
-   - **Choice**: Simple npm workspaces
-   - **Trade-off**: No advanced caching or task orchestration
-   - **Reason**: Simpler setup for a small project
+1. **Análise de Acessibilidade Aprimorada**
+   - Adicionar mais verificações WCAG (contraste de cores, hierarquia de headings, uso de ARIA)
+   - Integrar com axe-core ou pa11y para análise abrangente
+   - Suporte para páginas renderizadas com JavaScript usando Puppeteer
 
-### Improvements with More Time
+2. **Autenticação de Usuários**
+   - Contas de usuário para rastrear histórico pessoal de análises
+   - Rate limiting por usuário
 
-1. **Enhanced Accessibility Analysis**
-   - Add more WCAG checks (color contrast, heading hierarchy, ARIA usage)
-   - Integrate with axe-core or pa11y for comprehensive analysis
-   - Support for JavaScript-rendered pages using Puppeteer
+#### Média Prioridade
 
-2. **User Authentication**
-   - User accounts to track personal analysis history
-   - Rate limiting per user
+3. **Features Avançadas**
+   - Análise periódica agendada de URLs
+   - Geração de relatórios em PDF
+   - Comparação entre análises ao longo do tempo
+   - Análise em lote de URLs
 
-3. **Advanced Features**
-   - Scheduled periodic analysis of URLs
-   - PDF report generation
-   - Comparison between analyses over time
-   - Batch URL analysis
+4. **Otimizações de Performance**
+   - Cache Redis para análises de URLs repetidas
+   - Sistema de filas para tarefas de análise pesadas
+   - CDN para assets do frontend
 
-4. **Performance Optimizations**
-   - Redis caching for repeated URL analyses
-   - Queue system for heavy analysis tasks
-   - CDN for frontend assets
+#### Desejável
 
-5. **Better Testing**
-   - E2E tests with Cypress or Playwright
-   - Higher test coverage
-   - Integration tests with test database
+5. **Melhores Testes**
+   - Testes E2E com Cypress ou Playwright
+   - Maior cobertura de testes
+   - Testes de integração com banco de dados de teste
 
 ---
 
-## AWS Production Deploy Strategy
+## Estratégia de Deploy em Produção (AWS)
 
-### Architecture Overview
+### Visão Geral da Arquitetura
 
+```mermaid
+flowchart TB
+    subgraph DNS["DNS"]
+        Route53["Route 53"]
+    end
+
+    subgraph CDN["CDN"]
+        CloudFront["CloudFront"]
+    end
+
+    subgraph Static["Hospedagem Estática"]
+        S3["S3 (Frontend Vue.js)"]
+    end
+
+    subgraph LoadBalancing["Balanceamento de Carga"]
+        ALB["Application Load Balancer"]
+    end
+
+    subgraph Compute["Computação"]
+        ECS["ECS Fargate (Backend Node.js)"]
+    end
+
+    subgraph Database["Banco de Dados"]
+        DocDB["DocumentDB / MongoDB Atlas"]
+    end
+
+    subgraph Cache["Cache"]
+        Redis["ElastiCache (Redis)"]
+    end
+
+    Route53 --> CloudFront
+    CloudFront --> S3
+    CloudFront --> ALB
+    ALB --> ECS
+    ECS --> DocDB
+    ECS --> Redis
 ```
-                    ┌─────────────────┐
-                    │   CloudFront    │
-                    │     (CDN)       │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              │                             │
-    ┌─────────▼─────────┐       ┌──────────▼──────────┐
-    │        S3         │       │   Application       │
-    │    (Frontend)     │       │   Load Balancer     │
-    └───────────────────┘       └──────────┬──────────┘
-                                           │
-                                ┌──────────▼──────────┐
-                                │    ECS Fargate      │
-                                │    (Backend)        │
-                                └──────────┬──────────┘
-                                           │
-                         ┌─────────────────┴─────────────────┐
-                         │                                   │
-               ┌─────────▼─────────┐             ┌──────────▼──────────┐
-               │  DocumentDB or    │             │    ElastiCache      │
-               │  MongoDB Atlas    │             │      (Redis)        │
-               └───────────────────┘             └─────────────────────┘
-```
 
-### Services and Justifications
+### Serviços e Justificativas
 
 #### Frontend: S3 + CloudFront
 
-- **S3**: Host static Vue.js build files
-  - Low cost, highly durable (99.999999999%)
-  - No server management required
-
-- **CloudFront**: CDN for global distribution
-  - Low latency for users worldwide
-  - HTTPS with AWS Certificate Manager
-  - Cache static assets at edge locations
+| Serviço | Benefícios |
+|---------|------------|
+| **S3** | Hospedagem de arquivos estáticos Vue.js; Baixo custo; Alta durabilidade (99.999999999%); Sem gerenciamento de servidor |
+| **CloudFront** | CDN para distribuição global; Baixa latência mundial; HTTPS com AWS Certificate Manager; Cache de assets em edge locations |
 
 #### Backend: ECS Fargate
 
-- **Why ECS Fargate over EC2:**
-  - Serverless containers - no infrastructure management
-  - Auto-scaling based on demand
-  - Pay only for resources used
-  - Easy Docker deployment
+**Por que ECS Fargate ao invés de EC2:**
+- Containers serverless - sem gerenciamento de infraestrutura
+- Auto-scaling baseado em demanda
+- Pague apenas pelos recursos utilizados
+- Deploy Docker simplificado
 
-- **Why not Lambda:**
-  - WebSocket connections require persistent connections
-  - Lambda has cold start issues
-  - More complex for this use case
+**Por que não Lambda:**
+- Conexões WebSocket requerem conexões persistentes
+- Lambda tem problemas de cold start
+- Mais complexo para este caso de uso
 
-#### Database: DocumentDB or MongoDB Atlas
+#### Banco de Dados: DocumentDB ou MongoDB Atlas
 
-- **DocumentDB** (AWS managed MongoDB-compatible):
-  - Fully managed, auto-scaling storage
-  - Automatic backups and recovery
-  - VPC integration for security
-
-- **MongoDB Atlas** (alternative):
-  - True MongoDB compatibility
-  - Global clusters option
-  - Free tier available for development
+| Opção | Benefícios |
+|-------|------------|
+| **DocumentDB** (AWS gerenciado) | Totalmente gerenciado; Storage com auto-scaling; Backups automáticos; Integração VPC para segurança |
+| **MongoDB Atlas** (alternativa) | Compatibilidade verdadeira com MongoDB; Opção de clusters globais; Free tier disponível |
 
 #### Cache: ElastiCache (Redis)
 
-- Cache frequent URL analyses
-- Store session data
-- Rate limiting implementation
+- Cache de análises frequentes de URLs
+- Armazenamento de dados de sessão
+- Implementação de rate limiting
 
-### Deployment Pipeline
+### Pipeline de Deploy
 
-1. Push to main branch triggers GitHub Actions
-2. Run tests and build Docker images
-3. Push images to ECR (Elastic Container Registry)
-4. Update ECS service with new image
-5. Deploy frontend to S3 and invalidate CloudFront cache
+```mermaid
+flowchart LR
+    subgraph CI["GitHub Actions"]
+        Push["Push para main"]
+        Test["Executar Testes"]
+        Build["Build Docker"]
+    end
+
+    subgraph Registry["AWS ECR"]
+        Image["Imagem Docker"]
+    end
+
+    subgraph Deploy["Deploy"]
+        ECS["Atualizar ECS Service"]
+        S3["Deploy S3"]
+        CF["Invalidar CloudFront"]
+    end
+
+    Push --> Test
+    Test --> Build
+    Build --> Image
+    Image --> ECS
+    Build --> S3
+    S3 --> CF
+```
+
+1. Push para branch main aciona GitHub Actions
+2. Executa testes e build das imagens Docker
+3. Push das imagens para ECR (Elastic Container Registry)
+4. Atualiza serviço ECS com nova imagem
+5. Deploy do frontend para S3 e invalidação do cache CloudFront
 
 ---
 
-## Scalability Discussion
+## Desafios de Escalabilidade
 
-### Challenge: 100,000 Analyses per Day
+### Desafio: 100.000 Análises por Dia
 
-That's approximately:
-- ~4,167 analyses per hour
-- ~70 analyses per minute
-- ~1.2 analyses per second (average)
+Isso representa aproximadamente:
+- ~4.167 análises por hora
+- ~70 análises por minuto
+- ~1,2 análises por segundo (média)
 
-### Current Architecture Bottlenecks
+### Gargalos da Arquitetura Atual
 
-1. **Synchronous Analysis**
-   - Each request waits for URL fetch + analysis to complete
-   - Blocks resources during slow external URL fetches
+| Gargalo | Problema |
+|---------|----------|
+| **Análise Síncrona** | Cada requisição aguarda fetch da URL + análise completar; Bloqueia recursos durante fetches lentos |
+| **Instância Única de BD** | Carga pesada de escrita pode sobrecarregar instância única; Sem réplicas de leitura |
+| **Sem Cache** | Análises repetidas da mesma URL desperdiçam recursos |
+| **Restrições de Memória** | Parsing de HTML é intensivo em memória para páginas grandes |
 
-2. **Single Database Instance**
-   - Write-heavy workload could overwhelm single instance
-   - No read replicas for history queries
+### Arquitetura Evoluída para Escala
 
-3. **No Caching**
-   - Repeated analysis of same URLs wastes resources
+```mermaid
+flowchart TB
+    subgraph Gateway["Entrada"]
+        APIGateway["API Gateway"]
+    end
 
-4. **Memory Constraints**
-   - HTML parsing is memory-intensive for large pages
+    subgraph APIs["Microsserviços"]
+        AnalysisAPI["API de Análise<br/>(Submeter URLs)"]
+        ResultsAPI["API de Resultados<br/>(Consultar Histórico)"]
+    end
 
-### Evolved Architecture for Scale
+    subgraph Messaging["Mensageria"]
+        SQS["SQS (Fila de Jobs)"]
+    end
 
-```
-                         ┌─────────────────┐
-                         │   API Gateway   │
-                         └────────┬────────┘
-                                  │
-                    ┌─────────────┴─────────────┐
-                    │                           │
-          ┌─────────▼─────────┐     ┌──────────▼──────────┐
-          │   Analysis API    │     │    Results API      │
-          │   (Submit URLs)   │     │  (Query History)    │
-          └─────────┬─────────┘     └──────────┬──────────┘
-                    │                          │
-          ┌─────────▼─────────┐     ┌──────────▼──────────┐
-          │       SQS         │     │    ElastiCache      │
-          │  (Job Queue)      │     │      (Redis)        │
-          └─────────┬─────────┘     └──────────┬──────────┘
-                    │                          │
-          ┌─────────▼─────────┐     ┌──────────▼──────────┐
-          │  Worker Fleet     │     │  DocumentDB Cluster │
-          │  (ECS/Lambda)     │     │  (with replicas)    │
-          └───────────────────┘     └─────────────────────┘
-```
+    subgraph Workers["Processamento"]
+        WorkerFleet["Fleet de Workers<br/>(ECS/Lambda)"]
+    end
 
-### Solutions
+    subgraph Caching["Cache"]
+        ElastiCache["ElastiCache (Redis)"]
+    end
 
-#### 1. Asynchronous Processing with SQS
+    subgraph Database["Banco de Dados"]
+        DocDBCluster["Cluster DocumentDB<br/>(com réplicas)"]
+    end
 
-```
-User submits URL → API returns job ID → SQS queue → Workers process → WebSocket notifies completion
+    APIGateway --> AnalysisAPI
+    APIGateway --> ResultsAPI
+    AnalysisAPI --> SQS
+    SQS --> WorkerFleet
+    WorkerFleet --> DocDBCluster
+    ResultsAPI --> ElastiCache
+    ElastiCache --> DocDBCluster
 ```
 
-**Benefits:**
-- Non-blocking API responses
-- Automatic retry for failed jobs
-- Smooth handling of traffic spikes
+### Soluções
 
-#### 2. Worker Fleet with Auto-Scaling
+#### 1. Processamento Assíncrono com SQS
 
-- **ECS Fargate** workers that scale based on queue depth
-- Or **Lambda** for truly serverless processing (for non-WebSocket scenarios)
-- Process multiple analyses in parallel
+```
+Usuário submete URL → API retorna job ID → Fila SQS → Workers processam → WebSocket notifica conclusão
+```
 
-#### 3. Redis Caching Layer
+**Benefícios:**
+- Respostas da API não-bloqueantes
+- Retry automático para jobs falhos
+- Tratamento suave de picos de tráfego
+
+#### 2. Fleet de Workers com Auto-Scaling
+
+- Workers **ECS Fargate** que escalam baseado na profundidade da fila
+- Ou **Lambda** para processamento verdadeiramente serverless
+- Processa múltiplas análises em paralelo
+
+#### 3. Camada de Cache Redis
 
 ```typescript
 async function analyzeWithCache(url: string): Promise<AnalysisResult> {
@@ -563,65 +771,74 @@ async function analyzeWithCache(url: string): Promise<AnalysisResult> {
   if (cached) return JSON.parse(cached);
 
   const result = await performAnalysis(url);
-  await redis.setex(`analysis:${url}`, 3600, JSON.stringify(result)); // 1 hour TTL
+  await redis.setex(`analysis:${url}`, 3600, JSON.stringify(result)); // TTL 1 hora
 
   return result;
 }
 ```
 
-**Benefits:**
-- Avoid re-analyzing same URLs within TTL
-- Reduce database writes
-- Faster response times
+**Benefícios:**
+- Evita re-análise das mesmas URLs dentro do TTL
+- Reduz escritas no banco de dados
+- Tempos de resposta mais rápidos
 
-#### 4. Database Scaling
+#### 4. Escalabilidade do Banco de Dados
 
-- **DocumentDB with Read Replicas**: Separate read/write traffic
-- **Sharding**: Partition data by URL hash for horizontal scaling
-- **Time-based archiving**: Move old analyses to cold storage (S3 + Athena)
+- **DocumentDB com Réplicas de Leitura**: Separa tráfego de leitura/escrita
+- **Sharding**: Particiona dados por hash da URL para escalabilidade horizontal
+- **Arquivamento temporal**: Move análises antigas para cold storage (S3 + Athena)
 
-#### 5. Microservices Split
+#### 5. Divisão em Microsserviços
 
-- **Analysis Service**: Handles URL fetching and analysis
-- **Results Service**: Handles queries and history
-- **Notification Service**: Manages WebSocket connections
+| Serviço | Responsabilidade |
+|---------|------------------|
+| **Serviço de Análise** | Busca de URL e análise |
+| **Serviço de Resultados** | Consultas e histórico |
+| **Serviço de Notificação** | Gerencia conexões WebSocket |
 
-**Benefits:**
-- Independent scaling of each service
-- Isolated failures
-- Technology flexibility per service
+**Benefícios:**
+- Escalabilidade independente de cada serviço
+- Falhas isoladas
+- Flexibilidade tecnológica por serviço
 
-### Estimated Infrastructure for 100k/day
+### Estimativa de Infraestrutura para 100k/dia
 
-| Component | Configuration | Estimated Cost/Month |
-|-----------|--------------|---------------------|
+| Componente | Configuração | Custo Estimado/Mês |
+|------------|--------------|-------------------|
 | ECS Fargate (API) | 2 tasks, 0.5 vCPU, 1GB | ~$30 |
 | ECS Fargate (Workers) | 4-10 tasks (auto-scale) | ~$100-250 |
 | DocumentDB | db.r5.large | ~$200 |
 | ElastiCache Redis | cache.t3.small | ~$25 |
-| SQS | ~3M requests | ~$1 |
-| S3 + CloudFront | Static hosting | ~$10 |
+| SQS | ~3M requisições | ~$1 |
+| S3 + CloudFront | Hospedagem estática | ~$10 |
 | **Total** | | **~$370-520** |
 
 ---
 
-## Running Tests
+## Testes
+
+### Executando os Testes
 
 ```bash
-# Backend tests
+# Testes do backend
 cd backend
 npm run test
 
-# Frontend tests
+# Testes do frontend
 cd frontend
 npm run test
-
-# Run all tests
-npm run test  # from root (if configured)
 ```
+
+### Cobertura de Testes
+
+O projeto inclui testes unitários para:
+- Schemas de validação Zod
+- Serviços de análise de acessibilidade
+- Repositórios de dados
+- Componentes Vue
 
 ---
 
-## License
+## Licença
 
-This project was created as part of a technical challenge for Hand Talk.
+Este projeto foi criado como parte do desafio técnico para a Hand Talk.
