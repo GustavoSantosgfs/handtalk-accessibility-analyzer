@@ -1,0 +1,40 @@
+export interface ImageAnalysis {
+  total: number;
+  withoutAlt: number;
+  missingAltImages: string[];
+}
+
+export interface InputAnalysis {
+  total: number;
+  withoutLabel: number;
+  inputsWithoutLabel: string[];
+}
+
+export interface TitleAnalysis {
+  exists: boolean;
+  content: string | null;
+  isEmpty: boolean;
+}
+
+export interface AccessibilityResult {
+  title: TitleAnalysis;
+  images: ImageAnalysis;
+  inputs: InputAnalysis;
+  score: number;
+  passedChecks: number;
+  totalChecks: number;
+}
+
+export interface AnalysisDocument {
+  _id?: string;
+  url: string;
+  result: AccessibilityResult;
+  analyzedAt: Date;
+  duration: number;
+}
+
+export interface AnalysisProgress {
+  step: string;
+  progress: number;
+  message: string;
+}
