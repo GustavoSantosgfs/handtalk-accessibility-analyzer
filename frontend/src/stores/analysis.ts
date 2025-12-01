@@ -48,12 +48,14 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
-  async function fetchHistory(page: number = 1): Promise<void> {
+  async function fetchHistory(page: number = 1, limit?: number): Promise<void> {
     isLoading.value = true;
     error.value = null;
 
+    const itemsPerPage = limit ?? pagination.value.limit;
+
     try {
-      const result: PaginatedResponse<AnalysisResponse> = await getHistory(page, pagination.value.limit);
+      const result: PaginatedResponse<AnalysisResponse> = await getHistory(page, itemsPerPage);
       history.value = result.data;
       pagination.value = {
         page: result.page,
@@ -70,6 +72,11 @@ export const useAnalysisStore = defineStore('analysis', () => {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  function setItemsPerPage(limit: number): void {
+    pagination.value.limit = limit;
+    fetchHistory(1, limit);
   }
 
   function clearResult(): void {
@@ -89,6 +96,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     scoreColor,
     analyze,
     fetchHistory,
+    setItemsPerPage,
     clearResult
   };
 });

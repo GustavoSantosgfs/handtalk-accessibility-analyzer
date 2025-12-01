@@ -13,6 +13,10 @@ onMounted(() => {
 const handlePageChange = (page: number) => {
   store.fetchHistory(page);
 };
+
+const handleLimitChange = (limit: number) => {
+  store.setItemsPerPage(limit);
+};
 </script>
 
 <template>
@@ -48,11 +52,13 @@ const handlePageChange = (page: number) => {
       </section>
 
       <Pagination
-        v-if="store.pagination.totalPages > 1"
+        v-if="store.pagination.total > 0"
         :current-page="store.pagination.page"
         :total-pages="store.pagination.totalPages"
         :total="store.pagination.total"
+        :limit="store.pagination.limit"
         @page-change="handlePageChange"
+        @limit-change="handleLimitChange"
       />
     </template>
   </main>

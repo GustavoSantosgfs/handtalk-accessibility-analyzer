@@ -5,11 +5,15 @@ const props = defineProps<{
   currentPage: number;
   totalPages: number;
   total: number;
+  limit: number;
 }>();
 
 const emit = defineEmits<{
   pageChange: [page: number];
+  limitChange: [limit: number];
 }>();
+
+const limitOptions = [5, 10, 20, 50];
 
 const pages = computed(() => {
   const range: (number | string)[] = [];
@@ -35,13 +39,39 @@ const goToPage = (page: number) => {
     emit('pageChange', page);
   }
 };
+
+const handleLimitChange = (event: Event) => {
+  const target = event.target as HTMLSelectElement;
+  const newLimit = parseInt(target.value, 10);
+  emit('limitChange', newLimit);
+};
 </script>
 
 <template>
   <nav class="mt-4" aria-label="Navegação de paginação">
-    <p class="text-center text-muted small mb-2">
-      Página {{ currentPage }} de {{ totalPages }} ({{ total }} resultados no total)
-    </p>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+      <div class="d-flex align-items-center gap-2">
+        <label for="items-per-page" class="form-label mb-0 text-muted small">
+          Itens por página:
+        </label>
+        <select
+          id="items-per-page"
+          class="form-select form-select-sm"
+          style="width: auto;"
+          :value="limit"
+          @change="handleLimitChange"
+          aria-label="Selecionar quantidade de itens por página"
+        >
+          <option v-for="option in limitOptions" :key="option" :value="option">
+            {{ option }}
+          </option>
+        </select>
+      </div>
+
+      <p class="text-muted small mb-0">
+        Página {{ currentPage }} de {{ totalPages }} ({{ total }} resultados no total)
+      </p>
+    </div>
 
     <ul class="pagination justify-content-center flex-wrap">
       <li class="page-item" :class="{ disabled: currentPage === 1 }">
