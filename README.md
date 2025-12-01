@@ -14,10 +14,12 @@ Uma aplicação full-stack para análise de acessibilidade de websites, desenvol
 - [Documentação da API](#documentação-da-api)
 - [Decisões Arquiteturais](#decisões-arquiteturais)
 - [Padrões de Projeto](#padrões-de-projeto)
+- [Princípios SOLID e Clean Code](#princípios-solid-e-clean-code)
 - [Trade-offs e Melhorias](#trade-offs-e-melhorias)
 - [Estratégia de Deploy em Produção (AWS)](#estratégia-de-deploy-em-produção-aws)
 - [Desafios de Escalabilidade](#desafios-de-escalabilidade)
 - [Testes](#testes)
+- [Diferenciais Implementados](#diferenciais-implementados)
 
 ---
 
@@ -614,6 +616,81 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
 ---
 
+## Princípios SOLID e Clean Code
+
+O projeto foi desenvolvido seguindo os princípios SOLID e práticas de Clean Code para garantir código manutenível, testável e escalável.
+
+### Aplicação dos Princípios SOLID
+
+| Princípio | Aplicação no Projeto |
+|-----------|---------------------|
+| **S - Single Responsibility** | Cada classe tem uma única responsabilidade: `AccessibilityService` apenas analisa HTML, `HtmlFetcherService` apenas busca URLs, `AnalysisRepository` apenas persiste dados |
+| **O - Open/Closed** | Services e Repository podem ser estendidos sem modificação; novos tipos de análise podem ser adicionados criando novos métodos |
+| **L - Liskov Substitution** | Interfaces TypeScript garantem que implementações podem ser substituídas (ex: trocar MongoDB por outro banco apenas alterando o Repository) |
+| **I - Interface Segregation** | Interfaces pequenas e específicas: `PaginatedResult<T>`, `AccessibilityResult`, `AnalysisProgress` |
+| **D - Dependency Inversion** | Controllers dependem de abstrações (services), não de implementações concretas; facilita mocking em testes |
+
+### Estrutura em Camadas
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Controllers                             │
+│  • Recebem requisições HTTP                                  │
+│  • Validam entrada com Zod schemas                          │
+│  • Delegam para Services                                     │
+│  • Retornam respostas formatadas                            │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       Services                               │
+│  • Contêm lógica de negócio                                 │
+│  • AccessibilityService: analisa HTML                       │
+│  • HtmlFetcherService: busca conteúdo de URLs               │
+│  • Não conhecem HTTP nem banco de dados                     │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Repositories                             │
+│  • Abstraem acesso ao banco de dados                        │
+│  • CRUD operations                                          │
+│  • Paginação                                                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Práticas de Clean Code
+
+| Prática | Exemplo no Projeto |
+|---------|-------------------|
+| **Nomes Descritivos** | `analyzeTitle()`, `analyzeImages()`, `analyzeInputs()` - métodos com nomes que descrevem exatamente o que fazem |
+| **Funções Pequenas** | Cada método do `AccessibilityService` faz apenas uma coisa (análise de título, imagens ou inputs) |
+| **Sem Comentários Óbvios** | Código auto-documentado; comentários apenas onde necessário |
+| **DRY (Don't Repeat Yourself)** | Lógica de paginação centralizada no Repository; validação centralizada em Zod schemas |
+| **Tratamento de Erros** | Try/catch consistente nos controllers; mensagens de erro descritivas |
+| **TypeScript Strict** | Tipagem forte em todo o projeto; interfaces bem definidas |
+
+### Exemplo: Single Responsibility em Ação
+
+```typescript
+// ❌ Errado: Uma classe fazendo tudo
+class AnalysisManager {
+  async fetchAndAnalyzeAndSave(url: string) {
+    const html = await fetch(url);      // Busca
+    const result = this.analyze(html);   // Análise
+    await this.saveToDb(result);         // Persistência
+  }
+}
+
+// ✅ Correto: Responsabilidades separadas (como implementado)
+class HtmlFetcherService { fetch(url) }     // Apenas busca
+class AccessibilityService { analyze(html) } // Apenas análise
+class AnalysisRepository { create(result) }  // Apenas persistência
+class AnalysisController { /* orquestra */ } // Apenas coordenação
+```
+
+---
+
 ## Trade-offs e Melhorias
 
 ### Trade-offs Realizados
@@ -921,6 +998,68 @@ O projeto inclui testes unitários para:
 - Serviços de análise de acessibilidade
 - Repositórios de dados
 - Componentes Vue
+
+---
+
+## Diferenciais Implementados
+
+Além dos requisitos obrigatórios, o projeto implementa todos os **itens bônus** sugeridos no desafio:
+
+| Diferencial | Descrição | Localização |
+|-------------|-----------|-------------|
+| **WebSockets em Tempo Real** | Progresso da análise exibido em tempo real usando Socket.io | `backend/src/socket/`, `frontend/src/services/socketService.ts` |
+| **Script Bash de Automação** | Script que automatiza instalação de dependências e configuração do ambiente | `scripts/setup.sh` |
+| **Histórico com Paginação** | Rota `/api/history` com paginação e página dedicada no frontend com navegação entre páginas | `backend/src/controllers/`, `frontend/src/views/HistoryView.vue`, `frontend/src/components/Pagination.vue`, `frontend/src/components/HistoryList.vue` |
+| **Docker Compose** | Aplicação completa executável com um único comando | `docker-compose.yml` |
+
+### WebSockets - Progresso em Tempo Real
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário
+    participant F as Frontend
+    participant WS as WebSocket
+    participant B as Backend
+
+    U->>F: Submete URL
+    F->>WS: Conecta socket
+    F->>B: POST /api/analyze
+    B->>WS: emit("progress", 10%)
+    WS-->>F: Buscando HTML...
+    B->>WS: emit("progress", 50%)
+    WS-->>F: Analisando título...
+    B->>WS: emit("progress", 75%)
+    WS-->>F: Analisando imagens...
+    B->>WS: emit("progress", 100%)
+    WS-->>F: Análise completa!
+    B-->>F: Resultado JSON
+```
+
+### Script de Setup Automatizado
+
+```bash
+# Executa configuração completa do projeto
+./scripts/setup.sh
+
+# O script automaticamente:
+# ✓ Verifica pré-requisitos (Node.js >= 18)
+# ✓ Instala dependências do backend
+# ✓ Instala dependências do frontend
+# ✓ Cria arquivos .env a partir dos exemplos
+# ✓ Exibe instruções para próximos passos
+```
+
+### Execução com Docker Compose
+
+```bash
+# Inicia toda a aplicação com um único comando
+docker compose up
+
+# Serviços iniciados:
+# - MongoDB (porta 27017)
+# - Backend API + WebSocket (porta 3000)
+# - Frontend Vue.js (porta 8080)
+```
 
 ---
 
