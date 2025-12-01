@@ -22,7 +22,7 @@ describe('AnalyzerForm', () => {
 
     const form = wrapper.find('form');
     expect(form.attributes('role')).toBe('search');
-    expect(form.attributes('aria-label')).toBe('URL analyzer form');
+    expect(form.attributes('aria-label')).toBe('Formulário de análise de URL');
 
     const input = wrapper.find('input');
     expect(input.attributes('id')).toBe('url-input');

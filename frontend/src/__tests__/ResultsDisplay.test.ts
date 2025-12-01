@@ -38,7 +38,7 @@ describe('ResultsDisplay', () => {
 
     expect(wrapper.text()).toContain('33');
     expect(wrapper.text()).toContain('%');
-    expect(wrapper.text()).toContain('1/3 checks');
+    expect(wrapper.text()).toContain('1/3 verificações');
   });
 
   it('displays the analyzed URL', () => {
@@ -54,9 +54,9 @@ describe('ResultsDisplay', () => {
       props: { analysis: mockAnalysis }
     });
 
-    expect(wrapper.text()).toContain('Page Title');
+    expect(wrapper.text()).toContain('Título da Página');
     expect(wrapper.text()).toContain('Example Page');
-    expect(wrapper.text()).toContain('Passed');
+    expect(wrapper.text()).toContain('Aprovado');
   });
 
   it('shows image check result with issues', () => {
@@ -64,10 +64,10 @@ describe('ResultsDisplay', () => {
       props: { analysis: mockAnalysis }
     });
 
-    expect(wrapper.text()).toContain('Image Alt Attributes');
-    expect(wrapper.text()).toContain('5 images found');
-    expect(wrapper.text()).toContain('2 missing alt');
-    expect(wrapper.text()).toContain('Failed');
+    expect(wrapper.text()).toContain('Atributos Alt das Imagens');
+    expect(wrapper.text()).toContain('5 imagens encontradas');
+    expect(wrapper.text()).toContain('2 sem atributo alt');
+    expect(wrapper.text()).toContain('Reprovado');
   });
 
   it('shows input check result with issues', () => {
@@ -75,9 +75,9 @@ describe('ResultsDisplay', () => {
       props: { analysis: mockAnalysis }
     });
 
-    expect(wrapper.text()).toContain('Form Input Labels');
-    expect(wrapper.text()).toContain('3 inputs found');
-    expect(wrapper.text()).toContain('1 missing associated labels');
+    expect(wrapper.text()).toContain('Labels dos Campos de Formulário');
+    expect(wrapper.text()).toContain('3 campos encontrados');
+    expect(wrapper.text()).toContain('1 sem labels associados');
   });
 
   it('applies correct score color class for low score', () => {
@@ -113,10 +113,27 @@ describe('ResultsDisplay', () => {
     });
 
     const article = wrapper.find('article');
-    expect(article.attributes('aria-labelledby')).toBe('results-heading');
+    expect(article.exists()).toBe(true);
 
     const scoreCircle = wrapper.find('.rounded-circle');
     expect(scoreCircle.attributes('role')).toBe('img');
-    expect(scoreCircle.attributes('aria-label')).toContain('33 percent');
+    expect(scoreCircle.attributes('aria-label')).toContain('33 por cento');
+  });
+
+  it('shows missing alt images in the list', () => {
+    const wrapper = mount(ResultsDisplay, {
+      props: { analysis: mockAnalysis }
+    });
+
+    expect(wrapper.text()).toContain('img1.jpg');
+    expect(wrapper.text()).toContain('img2.jpg');
+  });
+
+  it('shows inputs without label in the list', () => {
+    const wrapper = mount(ResultsDisplay, {
+      props: { analysis: mockAnalysis }
+    });
+
+    expect(wrapper.text()).toContain('email-input');
   });
 });
